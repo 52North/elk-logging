@@ -1,0 +1,44 @@
+filebeat:
+  inputs:
+    - type: docker
+      hints:
+        enabled: true
+      paths:
+        - "/var/lib/docker/containers/*/*.log"
+      containers.ids: "*"
+  config:
+    modules:
+      path: ${path.config}/modules.d/*.yml
+      reload.enabled: false
+
+processors:
+  - decode_json_fields:
+      fields: ["message"]
+      target: ""
+      overwrite_keys: true
+  - add_docker_metadata: ~
+
+output:
+  elasticsearch:
+    hosts: "${ELASTICSEARCH_HOSTS:elasticsearch:9200}"
+    username: "${ELASTICSEARCH_USERNAME:}"
+    password: "${ELASTICSEARCH_PASSWORD:}"
+
+setup:
+  ilm:
+    enabled: true
+    check_exists: true
+    overwrite: true
+    rollover_alias: filebeat
+    policy_file: "/usr/share/filebeat/ilm.json"
+
+  kibana:
+    host: kibana:5601
+  dashboards:
+    enabled: true
+
+logging:
+  level: info
+  to_stderr: true
+  to_files: false
+  to_syslog: false

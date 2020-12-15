@@ -1,0 +1,65 @@
+version: "3"
+
+services:
+  elastic:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+    environment:
+      discovery.type: single-node
+    ports:
+      - 9200:9200
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    restart: unless-stopped
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      test: |
+        status=$$(curl -f -s localhost:9200/_cat/health?h=status) && [ "$$status" == "green" -o "$$status" == "yellow" ] && exit 0 || exit 1
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.10.1
+    environment:
+      ELASTICSEARCH_HOSTS: http://elastic:9200
+    ports:
+      - 5601:5601
+    depends_on:
+      - elastic
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      test: curl -sf http://localhost:5601/api/status
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.10.1
+    user: root
+    environment:
+      ELASTICSEARCH_HOSTS: http://elastic:9200
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - ./ilm.json:/usr/share/filebeat/ilm.json
+    command: ["-strict.perms=false"]
+    depends_on:
+      - elastic
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      test: filebeat test output
+    restart: unless-stopped
+
+  example:
+    image: huddle/logging:latest
+    build: ../java
+  
+
+volumes:
+  elastic-data:
+    driver: local
